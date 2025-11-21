@@ -7,7 +7,7 @@ import (
 
 type TeamService interface {
 	GetTeam(team_name string) (*domain.Team, error)
-	CreateTeam(team domain.Team) error
+	CreateTeam(team *domain.Team) error
 }
 
 type teamService struct {
@@ -18,7 +18,15 @@ func NewTeamService(r repository.TeamRepository) TeamService {
 	return &teamService{repo: r}
 }
 
-func (t *teamService) CreateTeam(team domain.Team) error {
+func (t *teamService) CreateTeam(team *domain.Team) error {
+
+	exist, err := t.repo.Exist(team.TeamName)
+	if err != nil {
+		return err
+	}
+	if exist {
+		return domain.ErrTeamNameTaken
+	}
 	return t.repo.Create(team)
 }
 

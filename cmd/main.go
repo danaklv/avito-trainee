@@ -25,7 +25,5 @@ func main() {
 
 	app := NewApp(db, conf.ApiPort)
 	app.Run()
-	
-	
 
 }

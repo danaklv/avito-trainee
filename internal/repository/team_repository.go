@@ -4,12 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"pr-reviewer/internal/domain"
 )
 
 type TeamRepository interface {
-	Create(team domain.Team) error
+	Create(team *domain.Team) error
 	Get(team_name string) (*domain.Team, error)
+	Exist(team_name string) (bool, error)
 }
 
 type teamRepository struct {
@@ -20,7 +22,7 @@ func NewTeamRepository(db *sql.DB) TeamRepository {
 	return &teamRepository{db: db}
 }
 
-func (r *teamRepository) Create(team domain.Team) error {
+func (r *teamRepository) Create(team *domain.Team) error {
 
 	tx, err := r.db.Begin()
 	if err != nil {
@@ -28,7 +30,7 @@ func (r *teamRepository) Create(team domain.Team) error {
 	}
 
 	err = tx.QueryRow(
-		"INSERT INTO teams(teamname) VALUES ($1) RETURNING team_id",
+		"INSERT INTO teams(team_name) VALUES ($1) RETURNING team_id",
 		team.TeamName,
 	).Scan(&team.ID)
 
@@ -38,11 +40,13 @@ func (r *teamRepository) Create(team domain.Team) error {
 	}
 
 	for _, user := range team.Members {
+		log.Println("Inserting:", user.UserName)
 		_, err = tx.Exec("INSERT INTO users(user_id, username, is_active, team_id) VALUES ($1, $2, $3, $4)", user.ID, user.UserName, user.IsActive, team.ID)
-	}
-	if err != nil {
-		tx.Rollback()
-		return errors.New("insert into users: " + err.Error())
+		if err != nil {
+			tx.Rollback()
+			return errors.New("insert into users: " + err.Error())
+		}
+
 	}
 
 	tx.Commit()
@@ -62,7 +66,7 @@ func (r *teamRepository) Get(team_name string) (*domain.Team, error) {
 		return nil, fmt.Errorf("select from teams: %w", err)
 	}
 
-	rows, err := r.db.Query("SELECT user_id, username, is_active FROM teams WHERE team_id=$1", team_id)
+	rows, err := r.db.Query("SELECT user_id, username, is_active FROM users WHERE team_id=$1", team_id)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -90,5 +94,17 @@ func (r *teamRepository) Get(team_name string) (*domain.Team, error) {
 		TeamName: team_name,
 		Members:  users,
 	}, nil
+
+}
+
+func (r *teamRepository) Exist(team_name string) (bool, error) {
+
+	var exist bool
+	err := r.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM teams WHERE team_name = $1)`, team_name).Scan(&exist)
+
+	if err != nil {
+		err = errors.New("SELECT EXISTS from teams: " + err.Error())
+	}
+	return exist, err
 
 }

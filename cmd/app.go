@@ -31,8 +31,6 @@ func (a *app) Run() {
 	teamHadnler := handlers.NewTeamHandler(teamService)
 
 	// USER
-	
-
 
 	mux := http.NewServeMux()
 

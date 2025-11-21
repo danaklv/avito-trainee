@@ -23,10 +23,15 @@ func (h *TeamHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var team domain.Team
+	var team *domain.Team
 
 	if err := json.NewDecoder(r.Body).Decode(&team); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	if team.TeamName == "" {
+		http.Error(w, "teamname required", http.StatusBadRequest)
 		return
 	}
 
@@ -39,7 +44,7 @@ func (h *TeamHandler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	if err := json.NewEncoder(w).Encode(map[string]string{"status": "created"}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]*domain.Team{"team": team}); err != nil {
 		http.Error(w, "failed to encode json", http.StatusInternalServerError)
 		return
 	}
