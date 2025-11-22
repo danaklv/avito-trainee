@@ -1,0 +1,45 @@
+run:
+  timeout: 3m
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    - format: colored-line-number
+
+
+linters:
+  enable:
+    - govet              # поиск типичных ошибок
+    - staticcheck        # анализ кода, выявление багов
+    - gosimple           # упрощение кода
+    - ineffassign        # неиспользуемые присваивания
+    - unused             # неиспользуемые переменные/импорты
+    - errcheck           # проверка ошибок
+    - gocyclo            # сложность функций
+    - revive             # стиль написания кода
+    - dupl               # дублирование кода
+    - goconst            # константы вместо magic values
+    - gosec              # базовая проверка на уязвимости
+
+linters-settings:
+  errcheck:
+    check-blank: true
+
+  gocyclo:
+    min-complexity: 15   # выше — выносить в отдельные функции
+
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+      - name: unused-parameter
+        severity: warning
+
+issues:
+  max-per-linter: 0
+  max-same-issues: 0
+  exclude-use-default: false
+  exclude:
+    - "should have comment"
+
