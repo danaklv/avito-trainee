@@ -35,21 +35,36 @@ func (r *teamRepository) Create(team *domain.Team) error {
 	).Scan(&team.ID)
 
 	if err != nil {
-		tx.Rollback()
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			log.Println("rollback:", err)
+		}
+
 		return errors.New("insert into teams: " + err.Error())
 	}
 
 	for _, user := range team.Members {
-		log.Println("Inserting:", user.UserName)
-		_, err = tx.Exec("INSERT INTO users(user_id, username, is_active, team_id) VALUES ($1, $2, $3, $4)", user.ID, user.UserName, user.IsActive, team.ID)
+		_, err = tx.Exec(`
+        INSERT INTO users(user_id, username, is_active, team_id)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id) DO UPDATE
+        SET username = EXCLUDED.username,
+        is_active = EXCLUDED.is_active,
+        team_id = EXCLUDED.team_id;`, user.ID, user.UserName, user.IsActive, team.ID)
+
 		if err != nil {
-			tx.Rollback()
+			if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				log.Println("rollback:", err)
+			}
+
 			return errors.New("insert into users: " + err.Error())
 		}
 
 	}
 
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
 	return nil
 
 }
@@ -61,12 +76,12 @@ func (r *teamRepository) Get(team_name string) (*domain.Team, error) {
 	err := r.db.QueryRow("SELECT team_id FROM teams WHERE team_name=$1", team_name).Scan(&team_id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, domain.ErrTeamNotFound
+			return nil, domain.ErrNotFound
 		}
 		return nil, fmt.Errorf("select from teams: %w", err)
 	}
 
-	rows, err := r.db.Query("SELECT user_id, username, is_active FROM users WHERE team_id=$1", team_id)
+	rows, err := r.db.Query("SELECT user_id, username, is_active, team_id FROM users WHERE team_id=$1", team_id)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -75,14 +90,19 @@ func (r *teamRepository) Get(team_name string) (*domain.Team, error) {
 		return nil, errors.New("select from users: " + err.Error())
 	}
 
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			log.Println("rows close:", cerr)
+		}
+	}()
 
 	var users []domain.User
 
 	for rows.Next() {
 		var user domain.User
 
-		err := rows.Scan(&user.ID, &user.UserName, &user.IsActive)
+		err := rows.Scan(&user.ID, &user.UserName, &user.IsActive, &user.TeamID)
+
 		if err != nil {
 			return nil, errors.New("scan row: " + err.Error())
 		}

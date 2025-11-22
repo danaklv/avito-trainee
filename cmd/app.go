@@ -1,16 +1,12 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
 	"pr-reviewer/internal/http/handlers"
 	"pr-reviewer/internal/repository"
 	"pr-reviewer/internal/services"
-	"syscall"
 	"time"
 )
 
@@ -31,36 +27,41 @@ func (a *app) Run() {
 	teamHadnler := handlers.NewTeamHandler(teamService)
 
 	// USER
+	userRepo := repository.NewUserRepository(a.db)
+	userService := services.NewUserService(userRepo)
+	userHandler := handlers.NewUserHandler(userService)
+
+	// PULL REQUEST
+	pullRequestRepo := repository.NewPullRequestRepository(a.db)
+	pullRequestService := services.NewPullRequestService(pullRequestRepo, userRepo)
+	pullRequestHandler := handlers.NewPullRequestHandler(pullRequestService)
+
+	// STATS
+	statsHandler := handlers.NewStatsHandler(services.NewStatsService(pullRequestRepo))
+
+	http.HandleFunc("/stats/reviewers", statsHandler.GetReviewersStats)
 
 	mux := http.NewServeMux()
+
+	mux.HandleFunc("/users/setIsActive", userHandler.SetIsActive)
+	mux.HandleFunc("/users/getReview", pullRequestHandler.GetReview)
 
 	mux.HandleFunc("/team/add", teamHadnler.CreateTeam)
 	mux.HandleFunc("/team/get", teamHadnler.GetTeam)
 
+	mux.HandleFunc("/pullRequest/create", pullRequestHandler.CreatePR)
+	mux.HandleFunc("/pullRequest/merge", pullRequestHandler.Merge)
+	mux.HandleFunc("/pullRequest/reassign", pullRequestHandler.Reassign)
+
 	server := &http.Server{
-		Addr:    a.port,
-		Handler: mux,
+		Addr:              a.port,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
-	go func() {
-		log.Println("listen and serve on:", a.port)
-		if err := server.ListenAndServe(); err != nil {
-			log.Fatal("listen and serve: ", err)
-		}
-	}()
-
-	// GRACEFULL SHUTDOWN
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	<-stop
-	log.Println("shutting down server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatal("server shutdown: ", err)
+	log.Println("listen and serve on:", a.port)
+	if err := server.ListenAndServe(); err != nil {
+		log.Fatal("listen and serve: ", err)
 	}
 
 }

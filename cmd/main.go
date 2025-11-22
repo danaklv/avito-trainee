@@ -17,7 +17,11 @@ func main() {
 		log.Fatal("db open: ", err)
 	}
 
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Println("failed to close db:", err)
+		}
+	}()
 
 	if err := db.Ping(); err != nil {
 		log.Fatal("db connection: ", err)
