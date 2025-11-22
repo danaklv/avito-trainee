@@ -34,12 +34,13 @@
 
 http://localhost:8080
 
-## Makefile команды
-``` make run ```       # docker-compose up --build
-``` make down ```      # остановка контейнеров
-``` make test ```       # запуск тестов
-``` make lint ```      # линтер
-``` make load-test ``` # нагрузочное тестирование k6
+## Makefile commands
+```bash
+make run        # docker-compose up --build
+make down       # stop containers
+make test       # run tests
+make lint       # golangci-lint
+make load-test  # k6 load testing
 
 
 
